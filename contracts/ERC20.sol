@@ -2,13 +2,15 @@
 
 pragma solidity ^0.8.0;
 
-import "./library/safeMath.sol";
+import {SafeMath} from "./library/safeMath.sol";
 
 contract ERC20 {
 
     string public name ;
     string public symbol;
-    uint8 public decimals;  
+    uint8 public decimals; 
+    uint256 public totalSupply; 
+
 
 
     event Approval(address indexed tokenOwner, address indexed spender, uint tokens);
@@ -66,7 +68,7 @@ contract ERC20 {
      function _mint(address account, uint256 amount) internal virtual {
         require(account != address(0), "ERC20: mint to the zero address");
 
-
+        totalSupply = totalSupply.add(amount);
         balances[account] = balances[account].add(amount);
         emit Transfer(address(0), account, amount);
     }
@@ -76,6 +78,7 @@ contract ERC20 {
 
 
         balances[account] = balances[account].sub(amount);
+        totalSupply = totalSupply.sub(amount);
         emit Transfer(account, address(0), amount);
     }
 }

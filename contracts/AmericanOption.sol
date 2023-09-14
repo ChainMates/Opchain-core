@@ -4,31 +4,34 @@ pragma solidity ^0.8.0;
  
 import {ERC20} from "./ERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
-
+import {SafeMath} from "./library/safeMath.sol";
 
 contract AmericanOption is ERC20  {
 
   struct OptionMaker {
-    uint balance;
-    uint shares; 
+    uint collected;
+    uint shares;
+    uint32 joinedExercise; 
   }
 
-struct IssuanceOrder{
-    address maker;
-    address taker;
-    IPermit2.Pemit2 permit;
-}
+ struct Order{
+   address owner;
+   uint amount;
+   IPermit2.Pemit2 permit;
+ }
 
-struct ExerciseOrder{
-  address owner;
-  IPermit2.Pemit2 permit;
-}
+  using SafeMath for uint256;
+
+ 
 
   string PERMIT2_ORDER_TYPE = "";
 
+  uint[] exerciseShare;
+
   address public immutable baseToken ;
   address public immutable quoteToken ;
-  uint public immutable strikePrice ;
+  uint public immutable strikePriceBaseTokenRatio ;
+  uint public immutable strikePriceQuoteTokenRatio ;
   uint public immutable expirationDate ;
   
   bool private _reentrancyGuard;
@@ -37,11 +40,12 @@ struct ExerciseOrder{
 
   mapping(address => OptionMaker) public optionMakers;
 
-  constructor(address _baseToken, address _quoteToken, uint _strikePrice, uint _expirationDate , uint8 baseTokenDecimals , IPermit2 _permit2) ERC20("AmericanOption", "EOPT" , baseTokenDecimals) {
+  constructor(address _baseToken, address _quoteToken, uint _strikePriceBaseTokenRatio , uint _strikePriceQuoteTokenRatio, uint _expirationDate , uint8 baseTokenDecimals , IPermit2 _permit2) ERC20("AmericanOption", "EOPT" , baseTokenDecimals) {
    
     baseToken = _baseToken;
     quoteToken = _quoteToken;
-    strikePrice = _strikePrice;
+    strikePriceBaseTokenRatio = _strikePriceBaseTokenRatio;
+    strikePriceQuoteTokenRatio = _strikePriceQuoteTokenRatio;
     expirationDate =_expirationDate;
     permit2 = _permit2;
   }
@@ -55,13 +59,13 @@ struct ExerciseOrder{
     _reentrancyGuard = false;
   }
 
-  function issuance(IssuanceOrder memory order) external nonReentrant {
+  function issuance(Order memory order , address taker) external nonReentrant {
 
-    require(order.permit.amount != 0, 'ERROR: optionAmount cannot be zero');
+    require(order.amount != 0, 'ERROR: optionAmount cannot be zero');
 
-    _transferTokens(order.permit , order.maker);
+    _transferTokens(order);
 
-    _mint(order.taker, order.permit.amount);
+    _mint(taker, order.amount);
    
 
 
@@ -70,34 +74,40 @@ struct ExerciseOrder{
 
 
 
-  function exercise(ExerciseOrder memory order) external {
+  function exercise(Order memory order) external nonReentrant {
 
-    _burn(order.owner, order.permit.amount);
+    uint amount = order.amount;
 
-    _transferTokens(order.permit, order.owner);
+    order.amount = order.amount.mul(strikePriceQuoteTokenRatio).div(strikePriceBaseTokenRatio);
 
+    _transferTokens(order);
+    
+    exerciseShare.push(order.amount.mul(amount).div(totalSupply));
+
+    _burn(order.owner, amount);
 
 
   }
 
-  function withdraw(uint amount) external {
+  function collect(uint amount) external nonReentrant {
+   
 
 
   }
 
 
-   function _transferTokens(IPermit2.Pemit2 memory order , address signer) internal {
+   function _transferTokens(Order memory order) internal {
 
     // Transfer tokens from the caller to ourselves.
     permit2.permitWitnessTransferFrom(
       // The permit message.
       IPermit2.PermitTransferFrom({
           permitted: IPermit2.TokenPermissions({
-              token: order.token,
-              amount: order.amount
+              token: order.permit.token,
+              amount: order.permit.amount
           }),
-          nonce: order.nonce,
-          deadline: order.deadline
+          nonce: order.permit.nonce,
+          deadline: order.permit.deadline
       }),
       // The transfer recipient and amount.
       IPermit2.SignatureTransferDetails({
@@ -107,12 +117,12 @@ struct ExerciseOrder{
       // The owner of the tokens, which must also be
       // the signer of the message, otherwise this call
       // will fail.
-      signer,
-      order.hash,
+      order.owner,
+      order.permit.hash,
       PERMIT2_ORDER_TYPE,
       // The packed signature that was the result of signing
       // the EIP712 hash of `permit`.
-      order.signature
+      order.permit.signature
     );
     }
 

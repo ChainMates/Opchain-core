@@ -13,8 +13,10 @@ contract OptionFactory {
   struct Option {
     address baseToken; 
     address quoteToken;
-    uint strikePrice;
+    uint strikePriceBaseTokenRatio;
+    uint strikePriceQuoteTokenRatio;
     uint expirationDate;
+    bool isAmerican;
   }
 
   IPermit2 public immutable permit2;
@@ -28,26 +30,26 @@ contract OptionFactory {
   event OptionCreated(address indexed baseToken, address indexed quoteToken ,uint strikePrice , uint expirationDate , bool isAmerican , address Option);
 
 
-  function createOption(address baseToken , address quoteToken , uint strikePrice , uint expirationDate , bool isAmerican ) 
-  external returns (address option) {
+  function createOption(Option memory option ) 
+  external returns (address createdOption) {
 
-    require(baseToken != quoteToken, 'ERROR : identical addresses');
-    require(baseToken != address(0) || quoteToken != address(0) , "ERROR : zero address");
+    require(option.baseToken != option.quoteToken, 'ERROR : identical addresses');
+    require(option.baseToken != address(0) || option.quoteToken != address(0) , "ERROR : zero address");
     
-    bytes32 hash = keccak256(abi.encode(baseToken, quoteToken, strikePrice, expirationDate , isAmerican));
+    bytes32 hash = keccak256(abi.encode(option.baseToken, option.quoteToken, option.strikePriceBaseTokenRatio , option.strikePriceQuoteTokenRatio, option.expirationDate , option.isAmerican));
     
     require(getOptions[hash] == address(0), "ERROR: option already exists");
 
 
 
-    if(isAmerican)
-      option = address(new AmericanOption(baseToken, quoteToken, strikePrice, expirationDate , IERC20(baseToken).decimals() , permit2));
+    if(option.isAmerican)
+      createdOption = address(new AmericanOption(option.baseToken, option.quoteToken, option.strikePriceBaseTokenRatio , option.strikePriceQuoteTokenRatio, option.expirationDate , IERC20(option.baseToken).decimals() , permit2));
      else
-       option = address(new EuropeanOption(baseToken, quoteToken, strikePrice, expirationDate , IERC20(baseToken).decimals() , permit2));
+       createdOption = address(new EuropeanOption(option.baseToken, option.quoteToken, option.strikePriceBaseTokenRatio , option.strikePriceQuoteTokenRatio, option.expirationDate , IERC20(option.baseToken).decimals() , permit2));
     
-    getOptions[hash] = option;
+    getOptions[hash] = createdOption;
 
-    emit OptionCreated(baseToken ,quoteToken ,strikePrice ,expirationDate , isAmerican , option);
+    emit OptionCreated(option.baseToken ,option.quoteToken ,option.strikePrice ,option.expirationDate , option.isAmerican , createdOption);
 
   }
 
