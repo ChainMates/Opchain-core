@@ -13,6 +13,21 @@ contract AmericanOption is ERC20 {
     uint shares; 
   }
 
+  struct Order {
+    address maker;
+    address taker;
+    uint256 chainID;
+    uint64 deadline;
+    uint256 nonce;
+    uint256 permiumAmount;
+    uint256 optionAmount;
+    address optionContractAddress;
+    bytes32 hash;
+    bytes signature;
+ }  
+
+  string PERMIT2_ORDER_TYPE = "";
+
   address public immutable baseToken ;
   address public immutable quoteToken ;
   uint public immutable strikePrice ;
@@ -31,7 +46,6 @@ contract AmericanOption is ERC20 {
     strikePrice = _strikePrice;
     expirationDate =_expirationDate;
     permit2 = _permit2;
-    // (baseToken , quoteToken , strikePrice , expirationDate) = (_baseToken , _quoteToken ,_strikePrice , _expirationDate);
   }
 
 
@@ -43,10 +57,38 @@ contract AmericanOption is ERC20 {
     _reentrancyGuard = false;
   }
 
-  function issuance(address maker , address taker , uint amount , bytes calldata makerPermit2Signature ) external nonReentrant {
+  function issuance(Order memory order) external nonReentrant {
 
+    require(order.optionAmount != 0, 'ERROR: optionAmount cannot be zero');
 
-    require(amount != 0, 'ERROR: amount cannot be zero');
+    // Transfer tokens from the caller to ourselves.
+    permit2.permitWitnessTransferFrom(
+      // The permit message.
+      IPermit2.PermitTransferFrom({
+          permitted: IPermit2.TokenPermissions({
+              token: baseToken,
+              amount: order.optionAmount
+          }),
+          nonce: order.nonce,
+          deadline: order.deadline
+      }),
+      // The transfer recipient and amount.
+      IPermit2.SignatureTransferDetails({
+          to: address(this),
+          requestedAmount: order.optionAmount
+      }),
+      // The owner of the tokens, which must also be
+      // the signer of the message, otherwise this call
+      // will fail.
+      order.maker,
+      order.hash,
+      PERMIT2_ORDER_TYPE,
+      // The packed signature that was the result of signing
+      // the EIP712 hash of `permit`.
+      order.signature
+    );
+
+    _mint(order.taker, order.optionAmount);
    
 
 
@@ -66,11 +108,6 @@ contract AmericanOption is ERC20 {
 
   }
 
-  function _mint(address to, uint amount) internal {
-  }
-
-  function _burn(address from, uint amount) internal {
-  }
 
   function _transferBaseTokens(address to, uint amount) internal {
     // Transfer base tokens

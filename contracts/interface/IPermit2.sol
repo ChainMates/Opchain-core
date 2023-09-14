@@ -4,40 +4,50 @@ pragma solidity ^0.8.0;
 // Minimal Permit2 interface, derived from
 // https://github.com/Uniswap/permit2/blob/main/src/interfaces/ISignatureTransfer.sol
 
-import "./IERC20.sol";
-
 interface IPermit2 {
-    // Token and amount in a permit message.
+    /// @notice The token and amount details for a transfer signed in the permit transfer signature
     struct TokenPermissions {
-        // Token to transfer.
-        IERC20 token;
-        // Amount to transfer.
+        // ERC20 token address
+        address token;
+        // the maximum amount that can be spent
         uint256 amount;
     }
 
-    // The permit2 message.
+    /// @notice The signed permit message for a single token transfer
     struct PermitTransferFrom {
-        // Permitted token and amount.
         TokenPermissions permitted;
-        // Unique identifier for this permit.
+        // a unique value for every token owner's signature to prevent signature replays
         uint256 nonce;
-        // Expiration for this permit.
+        // deadline on the permit signature
         uint256 deadline;
     }
 
-    // Transfer details for permitTransferFrom().
+    /// @notice Specifies the recipient address and amount for batched transfers.
+    /// @dev Recipients and amounts correspond to the index of the signed token permissions array.
+    /// @dev Reverts if the requested amount is greater than the permitted signed amount.
     struct SignatureTransferDetails {
-        // Recipient of tokens.
+        // recipient address
         address to;
-        // Amount to transfer.
+        // spender requested amount
         uint256 requestedAmount;
     }
 
-    // Consume a permit2 message and transfer tokens.
-    function permitTransferFrom(
-        PermitTransferFrom calldata permit,
+    /// @notice Transfers a token using a signed permit message
+    /// @notice Includes extra data provided by the caller to verify signature over
+    /// @dev The witness type string must follow EIP712 ordering of nested structs and must include the TokenPermissions type definition
+    /// @dev Reverts if the requested amount is greater than the permitted signed amount
+    /// @param permit The permit data signed over by the owner
+    /// @param owner The owner of the tokens to transfer
+    /// @param transferDetails The spender's requested transfer details for the permitted token
+    /// @param witness Extra data to include when checking the user signature
+    /// @param witnessTypeString The EIP-712 type definition for remaining string stub of the typehash
+    /// @param signature The signature to verify
+    function permitWitnessTransferFrom(
+        PermitTransferFrom memory permit,
         SignatureTransferDetails calldata transferDetails,
         address owner,
+        bytes32 witness,
+        string calldata witnessTypeString,
         bytes calldata signature
     ) external;
 }

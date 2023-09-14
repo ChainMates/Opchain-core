@@ -62,5 +62,21 @@ contract ERC20 {
         emit Transfer(owner, buyer, numTokens);
         return true;
     }
+
+     function _mint(address account, uint256 amount) internal virtual {
+        require(account != address(0), "ERC20: mint to the zero address");
+
+
+        balances[account] = balances[account].add(amount);
+        emit Transfer(address(0), account, amount);
+    }
+
+    function _burn(address account, uint256 amount) internal virtual {
+        require(account != address(0), "ERC20: burn from the zero address");
+
+
+        balances[account] = balances[account].sub(amount);
+        emit Transfer(account, address(0), amount);
+    }
 }
 

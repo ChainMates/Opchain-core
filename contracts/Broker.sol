@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {Ownable} from "./library/Ownable.sol";
+import {Ownable} from "./security/Ownable.sol";
 import {SafeMath} from "./library/SafeMath.sol";
 import {IERC20} from "./interface/IERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
@@ -24,8 +24,8 @@ contract Broker {
     uint16 takerFeeRatio;
     uint64 makerOrderID;
     uint64 takerOrderID;
-    uint64 makerValidUntil;
-    uint64 takerValidUntil;
+    uint64 makerDeadline;
+    uint64 takerDeadline;
     uint256 matchID;
     uint256 makerPermiumRatio;
     uint256 makerOptionRatio;
@@ -40,11 +40,10 @@ contract Broker {
     bytes takerSignature;
  }
 
- struct MessageParameters {
-    uint16 maxFeeRatio;
-    uint64 orderID;
-    uint64 validUntil;
+ struct Order {
     uint256 chainID;
+    uint64 deadline;
+    uint256 nonce;
     uint256 permiumRatio;
     uint256 optionRatio;
     address optionContractAddress;
