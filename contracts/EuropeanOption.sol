@@ -6,25 +6,23 @@ import {ERC20} from "./ERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
 
 
-contract EuropeanOption is ERC20 {
+contract EuropeanOption is ERC20  {
 
-  struct optionMaker {
+  struct OptionMaker {
     uint balance;
     uint shares; 
   }
 
-  struct Order {
+struct IssuanceOrder{
     address maker;
     address taker;
-    uint256 chainID;
-    uint64 deadline;
-    uint256 nonce;
-    uint256 permiumAmount;
-    uint256 optionAmount;
-    address optionContractAddress;
-    bytes32 hash;
-    bytes signature;
- }  
+    IPermit2.Pemit2 permit;
+}
+
+struct ExerciseOrder{
+  address owner;
+  IPermit2.Pemit2 permit;
+}
 
   string PERMIT2_ORDER_TYPE = "";
 
@@ -37,7 +35,7 @@ contract EuropeanOption is ERC20 {
   IPermit2 public immutable permit2;
 
 
-  mapping(address => optionMaker) public optionMakers;
+  mapping(address => OptionMaker) public optionMakers;
 
   constructor(address _baseToken, address _quoteToken, uint _strikePrice, uint _expirationDate , uint8 baseTokenDecimals , IPermit2 _permit2) ERC20("EuropeanOption", "EOPT" , baseTokenDecimals) {
    
@@ -57,38 +55,13 @@ contract EuropeanOption is ERC20 {
     _reentrancyGuard = false;
   }
 
-  function issuance(Order memory order) external nonReentrant {
+  function issuance(IssuanceOrder memory order) external nonReentrant {
 
-    require(order.optionAmount != 0, 'ERROR: optionAmount cannot be zero');
+    require(order.permit.amount != 0, 'ERROR: optionAmount cannot be zero');
 
-    // Transfer tokens from the caller to ourselves.
-    permit2.permitWitnessTransferFrom(
-      // The permit message.
-      IPermit2.PermitTransferFrom({
-          permitted: IPermit2.TokenPermissions({
-              token: baseToken,
-              amount: order.optionAmount
-          }),
-          nonce: order.nonce,
-          deadline: order.deadline
-      }),
-      // The transfer recipient and amount.
-      IPermit2.SignatureTransferDetails({
-          to: address(this),
-          requestedAmount: order.optionAmount
-      }),
-      // The owner of the tokens, which must also be
-      // the signer of the message, otherwise this call
-      // will fail.
-      order.maker,
-      order.hash,
-      PERMIT2_ORDER_TYPE,
-      // The packed signature that was the result of signing
-      // the EIP712 hash of `permit`.
-      order.signature
-    );
+    _transferTokens(order.permit , order.maker);
 
-    _mint(order.taker, order.optionAmount);
+    _mint(order.taker, order.permit.amount);
    
 
 
@@ -97,9 +70,13 @@ contract EuropeanOption is ERC20 {
 
 
 
-  function exercise(uint amount) external {
+  function exercise(ExerciseOrder memory order) external {
 
-    
+    _burn(order.owner, order.permit.amount);
+
+    _transferTokens(order.permit, order.owner);
+
+
 
   }
 
@@ -109,9 +86,35 @@ contract EuropeanOption is ERC20 {
   }
 
 
-  function _transferBaseTokens(address to, uint amount) internal {
-    // Transfer base tokens
-  }
+   function _transferTokens(IPermit2.Pemit2 memory order , address signer) internal {
+
+    // Transfer tokens from the caller to ourselves.
+    permit2.permitWitnessTransferFrom(
+      // The permit message.
+      IPermit2.PermitTransferFrom({
+          permitted: IPermit2.TokenPermissions({
+              token: order.token,
+              amount: order.amount
+          }),
+          nonce: order.nonce,
+          deadline: order.deadline
+      }),
+      // The transfer recipient and amount.
+      IPermit2.SignatureTransferDetails({
+          to: address(this),
+          requestedAmount: order.amount
+      }),
+      // The owner of the tokens, which must also be
+      // the signer of the message, otherwise this call
+      // will fail.
+      signer,
+      order.hash,
+      PERMIT2_ORDER_TYPE,
+      // The packed signature that was the result of signing
+      // the EIP712 hash of `permit`.
+      order.signature
+    );
+    }
 
 
 

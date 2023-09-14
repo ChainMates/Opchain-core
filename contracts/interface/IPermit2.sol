@@ -32,6 +32,15 @@ interface IPermit2 {
         uint256 requestedAmount;
     }
 
+    struct Pemit2 {
+        address token;
+        uint256 amount;
+        uint256 deadline;
+        uint256 nonce;
+        bytes32 hash;
+        bytes signature;
+    }
+
     /// @notice Transfers a token using a signed permit message
     /// @notice Includes extra data provided by the caller to verify signature over
     /// @dev The witness type string must follow EIP712 ordering of nested structs and must include the TokenPermissions type definition
