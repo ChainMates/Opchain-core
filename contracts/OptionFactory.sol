@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import {EuropeanOption} from "./EuropeanOption.sol";
 import {AmericanOption} from "./AmericanOption.sol";
-import {IERC20} from "./interface/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
 
 
