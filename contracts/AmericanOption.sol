@@ -15,6 +15,7 @@ contract AmericanOption is ERC20  {
   }
 
   struct OptionMaker {
+    uint totalShare;
     uint collected;
     OptionInfo[] issuances;
   }
@@ -24,6 +25,11 @@ contract AmericanOption is ERC20  {
    uint amount;
    IPermit2.Pemit2 permit;
  }
+
+  modifier isExpierd() {
+    require(block.timestamp > expirationDate , "ERROR : Option has not expired");
+    _;
+  }
 
   using SafeMath for uint256;
 
@@ -38,6 +44,8 @@ contract AmericanOption is ERC20  {
   uint public immutable strikePriceBaseTokenRatio ;
   uint public immutable strikePriceQuoteTokenRatio ;
   uint public immutable expirationDate ;
+
+  uint totalShare;
   
   bool private _reentrancyGuard;
   IPermit2 public immutable permit2;
@@ -71,17 +79,11 @@ contract AmericanOption is ERC20  {
     _transferTokens(order);
 
     _mint(taker, order.amount);
+    totalShare += order.amount;
 
-//     if (optionMakers[order.owner].issuances.length == 0) {
-//     // OptionMaker does not exist yet, initialize  
-//     optionMakers[order.owner] = OptionMaker({
-//       collected: 0,
-//       issuances: new OptionInfo[](0)
-//     });
-// }
+    optionMakers[order.owner].totalShare += order.amount;
 
-    // Now safe to push
-      optionMakers[order.owner].issuances.push(OptionInfo(
+    optionMakers[order.owner].issuances.push(OptionInfo(
       order.amount , 
       uint32(stageShare.length)
     ));
@@ -129,8 +131,12 @@ contract AmericanOption is ERC20  {
     optionMakers[msg.sender].collected += collectAmount;
 
    }
-  
+  }
 
+  function collect(address recipient) external nonReentrant isExpierd {
+
+    uint baseTokenAmount = totalSupply.mul(optionMakers[msg.sender].totalShare).div(totalShare);
+    IERC20(baseToken).transfer(recipient, baseTokenAmount);
 
   }
 

@@ -4,15 +4,11 @@ pragma solidity ^0.8.0;
  
 import {ERC20} from "./ERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
+import {IERC20} from "./interface/IERC20.sol";
 import {SafeMath} from "./library/safeMath.sol";
 
 contract EuropeanOption is ERC20  {
 
-  struct OptionMaker {
-    uint collected;
-    uint shares;
-    uint32 joinedExercise; 
-  }
 
  struct Order{
    address owner;
@@ -26,19 +22,20 @@ contract EuropeanOption is ERC20  {
 
   string PERMIT2_ORDER_TYPE = "";
 
-  uint[] exerciseShare;
 
   address public immutable baseToken ;
   address public immutable quoteToken ;
   uint public immutable strikePriceBaseTokenRatio ;
   uint public immutable strikePriceQuoteTokenRatio ;
   uint public immutable expirationDate ;
+
+  uint totalShare;
   
   bool private _reentrancyGuard;
   IPermit2 public immutable permit2;
 
 
-  mapping(address => OptionMaker) public optionMakers;
+  mapping(address => uint) public makersShare;
 
   constructor(address _baseToken, address _quoteToken, uint _strikePriceBaseTokenRatio , uint _strikePriceQuoteTokenRatio, uint _expirationDate , uint8 baseTokenDecimals , IPermit2 _permit2) ERC20("EuropeanOption", "EOPT" , baseTokenDecimals) {
    
@@ -59,6 +56,16 @@ contract EuropeanOption is ERC20  {
     _reentrancyGuard = false;
   }
 
+  modifier isExpierd() {
+    require(block.timestamp > expirationDate , "ERROR : Option has not expired");
+    _;
+  }
+
+  modifier isExercisable() {
+    require(block.timestamp + 1 days > expirationDate , "ERROR : Option is not exercisable");
+    _;
+  }
+
   function issuance(Order memory order , address taker) external nonReentrant {
 
     require(order.amount != 0, 'ERROR: optionAmount cannot be zero');
@@ -66,6 +73,7 @@ contract EuropeanOption is ERC20  {
     _transferTokens(order);
 
     _mint(taker, order.amount);
+    totalShare += order.amount;
    
 
 
@@ -74,25 +82,26 @@ contract EuropeanOption is ERC20  {
 
 
 
-  function exercise(Order memory order) external nonReentrant {
+  function exercise(Order memory order) external nonReentrant isExercisable {
 
-    uint amount = order.amount;
+    _burn(order.owner, order.amount);
 
     order.amount = order.amount.mul(strikePriceQuoteTokenRatio).div(strikePriceBaseTokenRatio);
 
     _transferTokens(order);
     
-    exerciseShare.push(order.amount.mul(amount).div(totalSupply));
-
-    _burn(order.owner, amount);
 
 
   }
 
-  function collect(uint amount) external nonReentrant {
+  function collect(address recipient) external nonReentrant isExpierd {
    
+    uint baseTokenAmount = totalSupply.mul(makersShare[msg.sender]).div(totalShare);
+    IERC20(baseToken).transfer(recipient, baseTokenAmount);
 
-
+    uint quoteTokenAmount = (totalShare.sub(totalSupply).mul(strikePriceQuoteTokenRatio).div(strikePriceBaseTokenRatio)).mul(makersShare[msg.sender]).div(totalShare);
+    IERC20(baseToken).transfer(recipient, quoteTokenAmount);
+    
   }
 
 
