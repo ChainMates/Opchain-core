@@ -4,14 +4,19 @@ pragma solidity ^0.8.0;
  
 import {ERC20} from "./ERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
+import {IERC20} from "./interface/IERC20.sol";
 import {SafeMath} from "./library/safeMath.sol";
 
 contract AmericanOption is ERC20  {
 
+  struct OptionInfo{
+    uint share;
+    uint32 stageJoined;
+  }
+
   struct OptionMaker {
     uint collected;
-    uint shares;
-    uint32 joinedExercise; 
+    OptionInfo[] issuances;
   }
 
  struct Order{
@@ -26,7 +31,7 @@ contract AmericanOption is ERC20  {
 
   string PERMIT2_ORDER_TYPE = "";
 
-  uint[] exerciseShare;
+  uint[] stageShare;
 
   address public immutable baseToken ;
   address public immutable quoteToken ;
@@ -66,8 +71,22 @@ contract AmericanOption is ERC20  {
     _transferTokens(order);
 
     _mint(taker, order.amount);
-   
 
+//     if (optionMakers[order.owner].issuances.length == 0) {
+//     // OptionMaker does not exist yet, initialize  
+//     optionMakers[order.owner] = OptionMaker({
+//       collected: 0,
+//       issuances: new OptionInfo[](0)
+//     });
+// }
+
+    // Now safe to push
+      optionMakers[order.owner].issuances.push(OptionInfo(
+      order.amount , 
+      uint32(stageShare.length)
+    ));
+    
+  
 
   }
 
@@ -82,15 +101,35 @@ contract AmericanOption is ERC20  {
 
     _transferTokens(order);
     
-    exerciseShare.push(order.amount.mul(amount).div(totalSupply));
+    stageShare.push(order.amount.mul(10 ** decimals).div(totalSupply));
 
     _burn(order.owner, amount);
 
 
   }
 
-  function collect(uint amount) external nonReentrant {
+  function collectQuoteToken(address recipient) external nonReentrant {
+
+   uint collectAmount ;
    
+   for (uint i = 0 ; i < optionMakers[msg.sender].issuances.length ; i++  ){
+     
+     for (uint j = optionMakers[msg.sender].issuances[i].stageJoined ; j< stageShare.length ; j++){
+
+      collectAmount += optionMakers[msg.sender].issuances[i].share.mul(stageShare[j]).div(10 ** decimals);
+
+      optionMakers[msg.sender].issuances[i].share = optionMakers[msg.sender].issuances[i].share.sub(collectAmount.mul(strikePriceBaseTokenRatio).div(strikePriceQuoteTokenRatio));
+
+     }
+
+    collectAmount -= optionMakers[msg.sender].collected;
+
+    IERC20(quoteToken).transfer(recipient, collectAmount);
+
+    optionMakers[msg.sender].collected += collectAmount;
+
+   }
+  
 
 
   }
