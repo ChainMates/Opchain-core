@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import {EuropeanOption} from "./EuropeanOption.sol";
 import {AmericanOption} from "./AmericanOption.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "./interface/IERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
 
 
@@ -27,7 +27,7 @@ contract OptionFactory {
 
   mapping(bytes32 => address) public getOptions;
 
-  event OptionCreated(address indexed baseToken, address indexed quoteToken ,uint strikePrice , uint expirationDate , bool isAmerican , address Option);
+  event OptionCreated(address indexed baseToken, address indexed quoteToken ,uint strikePriceBaseTokenRatio ,uint strikePriceQuoteTokenRatio , uint expirationDate , bool isAmerican , address Option);
 
 
   function createOption(Option memory option ) 
@@ -49,7 +49,7 @@ contract OptionFactory {
     
     getOptions[hash] = createdOption;
 
-    emit OptionCreated(option.baseToken ,option.quoteToken ,option.strikePrice ,option.expirationDate , option.isAmerican , createdOption);
+    emit OptionCreated(option.baseToken ,option.quoteToken ,option.strikePriceBaseTokenRatio , option.strikePriceQuoteTokenRatio ,option.expirationDate , option.isAmerican , createdOption);
 
   }
 

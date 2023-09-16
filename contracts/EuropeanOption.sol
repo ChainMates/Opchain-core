@@ -1,14 +1,13 @@
 //SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
- 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extention/ERC20Permit.sol";
-import {IPermit2} from "./interface/IPermit2.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-contract EuropeanOption is ERC20 , ERC20Permit  {
+import {ERC20} from "solmate/src/tokens/ERC20.sol";
+import {IPermit2} from "./interface/IPermit2.sol";
+import {IERC20} from "./interface/IERC20.sol";
+import {SafeMath} from "./library/SafeMath.sol";
+
+contract EuropeanOption is ERC20  {
 
 
  struct Order{
@@ -30,7 +29,6 @@ contract EuropeanOption is ERC20 , ERC20Permit  {
   uint public immutable strikePriceQuoteTokenRatio ;
   uint public immutable expirationDate ;
   
-  uint8 private immutable baseTokenDecimals; 
 
   uint totalShare;
   
@@ -40,7 +38,7 @@ contract EuropeanOption is ERC20 , ERC20Permit  {
 
   mapping(address => uint) public makersShare;
 
-  constructor(address _baseToken, address _quoteToken, uint _strikePriceBaseTokenRatio , uint _strikePriceQuoteTokenRatio, uint _expirationDate , uint8 _baseTokenDecimals , IPermit2 _permit2) ERC20("EuropeanOption", "EOPT" ) ERC20Permit("EuropeanOption") {
+  constructor(address _baseToken, address _quoteToken, uint _strikePriceBaseTokenRatio , uint _strikePriceQuoteTokenRatio, uint _expirationDate , uint8 _baseTokenDecimals , IPermit2 _permit2) ERC20("EuropeanOption", "EOPT" , _baseTokenDecimals) {
    
     baseToken = _baseToken;
     quoteToken = _quoteToken;
@@ -48,12 +46,7 @@ contract EuropeanOption is ERC20 , ERC20Permit  {
     strikePriceQuoteTokenRatio = _strikePriceQuoteTokenRatio;
     expirationDate =_expirationDate;
     permit2 = _permit2;
-    baseTokenDecimals = _baseTokenDecimals;
   }
-
-  function decimals() override public view returns (uint8) {
-       return baseTokenDecimals;
-   }
 
 
   // Prevents reentrancy attacks via tokens with callback mechanisms. 
@@ -104,10 +97,10 @@ contract EuropeanOption is ERC20 , ERC20Permit  {
 
   function collect(address recipient) external nonReentrant isExpierd {
    
-    uint baseTokenAmount = totalSupply().mul(makersShare[msg.sender]).div(totalShare);
+    uint baseTokenAmount = totalSupply.mul(makersShare[msg.sender]).div(totalShare);
     IERC20(baseToken).transfer(recipient, baseTokenAmount);
 
-    uint quoteTokenAmount = (totalShare.sub(totalSupply()).mul(strikePriceQuoteTokenRatio).div(strikePriceBaseTokenRatio)).mul(makersShare[msg.sender]).div(totalShare);
+    uint quoteTokenAmount = (totalShare.sub(totalSupply).mul(strikePriceQuoteTokenRatio).div(strikePriceBaseTokenRatio)).mul(makersShare[msg.sender]).div(totalShare);
     IERC20(baseToken).transfer(recipient, quoteTokenAmount);
     
   }

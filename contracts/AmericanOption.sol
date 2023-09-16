@@ -2,13 +2,12 @@
 
 pragma solidity ^0.8.0;
  
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extention/ERC20Permit.sol";
+import {ERC20} from "solmate/src/tokens/ERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import {IERC20} from "./interface/IERC20.sol";
+import {SafeMath} from "./library/SafeMath.sol";
 
-contract AmericanOption is ERC20 , ERC20Permit {
+contract AmericanOption is ERC20 {
 
   struct OptionInfo{
     uint share;
@@ -46,8 +45,6 @@ contract AmericanOption is ERC20 , ERC20Permit {
   uint public immutable strikePriceQuoteTokenRatio ;
   uint public immutable expirationDate ;
 
-  uint8 private immutable baseTokenDecimals; 
-
   uint totalShare;
   
   bool private _reentrancyGuard;
@@ -56,7 +53,7 @@ contract AmericanOption is ERC20 , ERC20Permit {
 
   mapping(address => OptionMaker) public optionMakers;
 
-  constructor(address _baseToken, address _quoteToken, uint _strikePriceBaseTokenRatio , uint _strikePriceQuoteTokenRatio, uint _expirationDate , uint8 _baseTokenDecimals, IPermit2 _permit2) ERC20("AmericanOption", "EOPT") ERC20Permit("AmericanOption") {
+  constructor(address _baseToken, address _quoteToken, uint _strikePriceBaseTokenRatio , uint _strikePriceQuoteTokenRatio, uint _expirationDate , uint8 _baseTokenDecimals, IPermit2 _permit2) ERC20("AmericanOption", "EOPT" , _baseTokenDecimals) {
    
     baseToken = _baseToken;
     quoteToken = _quoteToken;
@@ -64,13 +61,7 @@ contract AmericanOption is ERC20 , ERC20Permit {
     strikePriceQuoteTokenRatio = _strikePriceQuoteTokenRatio;
     expirationDate =_expirationDate;
     permit2 = _permit2;
-    baseTokenDecimals= _baseTokenDecimals;
   }
-
-  function decimals() override public view returns (uint8) {
-      return baseTokenDecimals;
-  }
-
 
   // Prevents reentrancy attacks via tokens with callback mechanisms. 
   modifier nonReentrant() {
@@ -111,7 +102,7 @@ contract AmericanOption is ERC20 , ERC20Permit {
 
     _transferTokens(order);
     
-    stageShare.push(order.amount.mul(10 ** decimals()).div(totalSupply()));
+    stageShare.push(order.amount.mul(10 ** decimals).div(totalSupply));
 
     _burn(order.owner, amount);
 
@@ -126,7 +117,7 @@ contract AmericanOption is ERC20 , ERC20Permit {
      
      for (uint j = optionMakers[msg.sender].issuances[i].stageJoined ; j< stageShare.length ; j++){
 
-      collectAmount += optionMakers[msg.sender].issuances[i].share.mul(stageShare[j]).div(10 ** decimals());
+      collectAmount += optionMakers[msg.sender].issuances[i].share.mul(stageShare[j]).div(10 ** decimals);
 
       optionMakers[msg.sender].issuances[i].share = optionMakers[msg.sender].issuances[i].share.sub(collectAmount.mul(strikePriceBaseTokenRatio).div(strikePriceQuoteTokenRatio));
 
@@ -143,7 +134,7 @@ contract AmericanOption is ERC20 , ERC20Permit {
 
   function collect(address recipient) external nonReentrant isExpierd {
 
-    uint baseTokenAmount = totalSupply().mul(optionMakers[msg.sender].totalShare).div(totalShare);
+    uint baseTokenAmount = totalSupply.mul(optionMakers[msg.sender].totalShare).div(totalShare);
     IERC20(baseToken).transfer(recipient, baseTokenAmount);
 
   }
