@@ -8,6 +8,7 @@ import {IERC20} from "./interface/IERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
 
 contract OptionFactory {
+
     struct Option {
         address baseToken;
         address quoteToken;
@@ -19,11 +20,11 @@ contract OptionFactory {
 
     IPermit2 public immutable permit2;
 
+    mapping(bytes32 => address) public getOptions;
+
     constructor(IPermit2 _permit2) {
         permit2 = _permit2;
     }
-
-    mapping(bytes32 => address) public getOptions;
 
     event OptionCreated(
         address indexed baseToken,

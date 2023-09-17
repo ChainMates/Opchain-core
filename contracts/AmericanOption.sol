@@ -25,22 +25,6 @@ contract AmericanOption is ERC20 {
         IPermit2.Pemit2 permit;
     }
 
-    modifier isExpierd() {
-        require(
-            block.timestamp > expirationDate,
-            "ERROR : Option has not expired"
-        );
-        _;
-    }
-
-    modifier isNotExpierd() {
-        require(
-            block.timestamp <= expirationDate,
-            "ERROR : Option has expired"
-        );
-        _;
-    }
-
     using SafeMath for uint256;
 
     string PERMIT2_ORDER_TYPE = "";
@@ -59,6 +43,31 @@ contract AmericanOption is ERC20 {
     IPermit2 public immutable permit2;
 
     mapping(address => OptionMaker) public optionMakers;
+    
+    modifier isExpierd() {
+        require(
+            block.timestamp > expirationDate,
+            "ERROR : Option has not expired"
+        );
+        _;
+    }
+
+    modifier isNotExpierd() {
+        require(
+            block.timestamp <= expirationDate,
+            "ERROR : Option has expired"
+        );
+        _;
+    }
+
+    // Prevents reentrancy attacks via tokens with callback mechanisms.
+    modifier nonReentrant() {
+        require(!_reentrancyGuard, "no reentrancy");
+        _reentrancyGuard = true;
+        _;
+        _reentrancyGuard = false;
+    }
+    
 
     constructor(
         address _baseToken,
@@ -77,13 +86,6 @@ contract AmericanOption is ERC20 {
         permit2 = _permit2;
     }
 
-    // Prevents reentrancy attacks via tokens with callback mechanisms.
-    modifier nonReentrant() {
-        require(!_reentrancyGuard, "no reentrancy");
-        _reentrancyGuard = true;
-        _;
-        _reentrancyGuard = false;
-    }
 
     function issue(Order memory order, address taker) external nonReentrant {
         require(order.amount != 0, "ERROR: optionAmount cannot be zero");

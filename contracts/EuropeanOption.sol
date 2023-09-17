@@ -31,23 +31,6 @@ contract EuropeanOption is ERC20 {
 
     mapping(address => uint) public makersShare;
 
-    constructor(
-        address _baseToken,
-        address _quoteToken,
-        uint _strikePriceBaseTokenRatio,
-        uint _strikePriceQuoteTokenRatio,
-        uint _expirationDate,
-        uint8 _baseTokenDecimals,
-        IPermit2 _permit2
-    ) ERC20("EuropeanOption", "EOPT", _baseTokenDecimals) {
-        baseToken = _baseToken;
-        quoteToken = _quoteToken;
-        strikePriceBaseTokenRatio = _strikePriceBaseTokenRatio;
-        strikePriceQuoteTokenRatio = _strikePriceQuoteTokenRatio;
-        expirationDate = _expirationDate;
-        permit2 = _permit2;
-    }
-
     // Prevents reentrancy attacks via tokens with callback mechanisms.
     modifier nonReentrant() {
         require(!_reentrancyGuard, "no reentrancy");
@@ -79,6 +62,24 @@ contract EuropeanOption is ERC20 {
         );
         _;
     }
+    
+    constructor(
+        address _baseToken,
+        address _quoteToken,
+        uint _strikePriceBaseTokenRatio,
+        uint _strikePriceQuoteTokenRatio,
+        uint _expirationDate,
+        uint8 _baseTokenDecimals,
+        IPermit2 _permit2
+    ) ERC20("EuropeanOption", "EOPT", _baseTokenDecimals) {
+        baseToken = _baseToken;
+        quoteToken = _quoteToken;
+        strikePriceBaseTokenRatio = _strikePriceBaseTokenRatio;
+        strikePriceQuoteTokenRatio = _strikePriceQuoteTokenRatio;
+        expirationDate = _expirationDate;
+        permit2 = _permit2;
+    }
+
 
     function issue(Order memory order, address taker) external isNotExpierd nonReentrant {
 
