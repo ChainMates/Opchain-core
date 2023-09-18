@@ -12,25 +12,26 @@ contract OptionFactory {
     struct Option {
         address baseToken;
         address quoteToken;
-        uint strikePriceBaseTokenRatio;
-        uint strikePriceQuoteTokenRatio;
+        uint strikePriceRatio;
         uint expirationDate;
         bool isAmerican;
     }
 
     IPermit2 public immutable permit2;
+    address public broker;
+
 
     mapping(bytes32 => address) public getOptions;
 
-    constructor(IPermit2 _permit2) {
+    constructor(address _broker, IPermit2 _permit2 ) {
+        broker = _broker;
         permit2 = _permit2;
     }
 
     event OptionCreated(
         address indexed baseToken,
         address indexed quoteToken,
-        uint strikePriceBaseTokenRatio,
-        uint strikePriceQuoteTokenRatio,
+        uint strikePriceRatio,
         uint expirationDate,
         bool isAmerican,
         address OptionAddress
@@ -38,7 +39,7 @@ contract OptionFactory {
 
     function createOption(
         Option memory option
-    ) external returns (address createdOption) {
+    ) external returns(address createdOption) {
         require(
             option.baseToken != option.quoteToken,
             "ERROR : identical addresses"
@@ -52,8 +53,7 @@ contract OptionFactory {
             abi.encode(
                 option.baseToken,
                 option.quoteToken,
-                option.strikePriceBaseTokenRatio,
-                option.strikePriceQuoteTokenRatio,
+                option.strikePriceRatio,
                 option.expirationDate,
                 option.isAmerican
             )
@@ -66,11 +66,11 @@ contract OptionFactory {
                 new AmericanOption(
                     option.baseToken,
                     option.quoteToken,
-                    option.strikePriceBaseTokenRatio,
-                    option.strikePriceQuoteTokenRatio,
+                    option.strikePriceRatio,
                     option.expirationDate,
                     IERC20(option.baseToken).decimals(),
-                    permit2
+                    permit2 ,
+                    broker
                 )
             );
         else
@@ -78,11 +78,11 @@ contract OptionFactory {
                 new EuropeanOption(
                     option.baseToken,
                     option.quoteToken,
-                    option.strikePriceBaseTokenRatio,
-                    option.strikePriceQuoteTokenRatio,
+                    option.strikePriceRatio,
                     option.expirationDate,
                     IERC20(option.baseToken).decimals(),
-                    permit2
+                    permit2 ,
+                    broker
                 )
             );
 
@@ -91,8 +91,7 @@ contract OptionFactory {
         emit OptionCreated(
             option.baseToken,
             option.quoteToken,
-            option.strikePriceBaseTokenRatio,
-            option.strikePriceQuoteTokenRatio,
+            option.strikePriceRatio,
             option.expirationDate,
             option.isAmerican,
             createdOption

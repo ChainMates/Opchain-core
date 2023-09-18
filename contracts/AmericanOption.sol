@@ -21,8 +21,9 @@ contract AmericanOption is ERC20 {
 
     struct Order {
         address owner;
-        uint amount;
-        IPermit2.Pemit2 permit;
+        uint256 amount;
+        bytes signature;
+        IPermit2.PermitSingle permitSingle;
     }
 
     using SafeMath for uint256;
@@ -33,14 +34,15 @@ contract AmericanOption is ERC20 {
 
     address public immutable baseToken;
     address public immutable quoteToken;
-    uint public immutable strikePriceBaseTokenRatio;
-    uint public immutable strikePriceQuoteTokenRatio;
+    uint public immutable strikePriceRatio;
     uint public immutable expirationDate;
 
     uint totalShare;
 
     bool private _reentrancyGuard;
     IPermit2 public immutable permit2;
+    address public broker; 
+    uint256 strikePriceDenominator;
 
     mapping(address => OptionMaker) public optionMakers;
     
@@ -67,30 +69,36 @@ contract AmericanOption is ERC20 {
         _;
         _reentrancyGuard = false;
     }
-    
 
+        modifier onlyBroker() {
+        require(msg.sender == broker, "UNAUTHORIZED");
+
+        _;
+    }
+    
     constructor(
         address _baseToken,
         address _quoteToken,
-        uint _strikePriceBaseTokenRatio,
-        uint _strikePriceQuoteTokenRatio,
+        uint _strikePriceRatio,
         uint _expirationDate,
         uint8 _baseTokenDecimals,
-        IPermit2 _permit2
+        IPermit2 _permit2,
+        address _broker
     ) ERC20("AmericanOption", "EOPT", _baseTokenDecimals) {
         baseToken = _baseToken;
         quoteToken = _quoteToken;
-        strikePriceBaseTokenRatio = _strikePriceBaseTokenRatio;
-        strikePriceQuoteTokenRatio = _strikePriceQuoteTokenRatio;
+        strikePriceRatio = _strikePriceRatio;
         expirationDate = _expirationDate;
         permit2 = _permit2;
+        broker =_broker;
+        strikePriceDenominator = 10 ** _baseTokenDecimals;
     }
 
 
-    function issue(Order memory order, address taker) external nonReentrant {
+    function issue(Order memory order, address taker) external nonReentrant onlyBroker {
         require(order.amount != 0, "ERROR: optionAmount cannot be zero");
 
-        _transferTokens(order);
+        permitAndTransfer(order);
 
         _mint(taker, order.amount);
         totalShare += order.amount;
@@ -106,10 +114,10 @@ contract AmericanOption is ERC20 {
         _burn(order.owner, order.amount);
         IERC20(baseToken).transfer(order.owner, order.amount);
 
-        order.amount = order.amount.mul(strikePriceQuoteTokenRatio).div(
-            strikePriceBaseTokenRatio
+        order.amount = order.amount.mul(strikePriceRatio).div(
+            strikePriceDenominator
         );
-        _transferTokens(order);
+        permitAndTransfer(order);
         stageShare.push(order.amount.mul(10 ** decimals).div(totalSupply));
     }
 
@@ -130,8 +138,8 @@ contract AmericanOption is ERC20 {
                 optionMakers[msg.sender].issuances[i].share = optionMakers[
                     msg.sender
                 ].issuances[i].share.sub(
-                        collectAmount.mul(strikePriceBaseTokenRatio).div(
-                            strikePriceQuoteTokenRatio
+                        collectAmount.mul(strikePriceDenominator).div(
+                            strikePriceRatio
                         )
                     );
             }
@@ -149,32 +157,41 @@ contract AmericanOption is ERC20 {
         IERC20(baseToken).transfer(recipient, baseTokenAmount);
     }
 
-    function _transferTokens(Order memory order) internal {
-        // Transfer tokens from the caller to ourselves.
-        permit2.permitWitnessTransferFrom(
-            // The permit message.
-            IPermit2.PermitTransferFrom({
-                permitted: IPermit2.TokenPermissions({
-                    token: order.permit.token,
-                    amount: order.permit.amount
-                }),
-                nonce: order.permit.nonce,
-                deadline: order.permit.deadline
-            }),
-            // The transfer recipient and amount.
-            IPermit2.SignatureTransferDetails({
-                to: address(this),
-                requestedAmount: order.amount
-            }),
-            // The owner of the tokens, which must also be
-            // the signer of the message, otherwise this call
-            // will fail.
-            order.owner,
-            order.permit.hash,
-            PERMIT2_ORDER_TYPE,
-            // The packed signature that was the result of signing
-            // the EIP712 hash of `permit`.
-            order.permit.signature
-        );
-    }
+    // function permitAndTransfer(Order memory order) internal {
+    //     // Transfer tokens from the caller to ourselves.
+    //     permit2.permitWitnessTransferFrom(
+    //         // The permit message.
+    //         IPermit2.PermitTransferFrom({
+    //             permitted: IPermit2.TokenPermissions({
+    //                 token: order.permit.token,
+    //                 amount: order.permit.amount
+    //             }),
+    //             nonce: order.permit.nonce,
+    //             deadline: order.permit.deadline
+    //         }),
+    //         // The transfer recipient and amount.
+    //         IPermit2.SignatureTransferDetails({
+    //             to: address(this),
+    //             requestedAmount: order.amount
+    //         }),
+    //         // The owner of the tokens, which must also be
+    //         // the signer of the message, otherwise this call
+    //         // will fail.
+    //         order.owner,
+    //         order.permit.hash,
+    //         PERMIT2_ORDER_TYPE,
+    //         // The packed signature that was the result of signing
+    //         // the EIP712 hash of `permit`.
+    //         order.permit.signature
+    //     );
+    // }
+
+
+    function permitAndTransfer(Order memory order) internal {
+   
+    require(order.permitSingle.spender != address(this) , "ERROR: invalid spender");
+    permit2.permit(msg.sender, order.permitSingle, order.signature);
+    permit2.transferFrom(msg.sender, address(this), uint160(order.amount) , order.permitSingle.details.token);
+    //...Do cooler stuff ...
+   }
 }
