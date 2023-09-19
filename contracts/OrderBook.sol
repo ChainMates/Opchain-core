@@ -25,7 +25,7 @@ contract OrderBook {
             uint256(orderBook[order.orderID]) == 0,
             "ERROR : orderID already exist"
         );
-        orderBook[order.orderID] = hash(msg.sender, order);
+        orderBook[order.orderID] = _hash(msg.sender, order);
 
         emit orderAdded(msg.sender, order);
     }
@@ -35,17 +35,17 @@ contract OrderBook {
         Order memory newOrder
     ) external {
         require(
-            orderBook[oldOrder.orderID] == hash(msg.sender, oldOrder),
+            orderBook[oldOrder.orderID] == _hash(msg.sender, oldOrder),
             "ERROR : order does not exist"
         );
-        orderBook[oldOrder.orderID] = hash(msg.sender, newOrder);
+        orderBook[oldOrder.orderID] = _hash(msg.sender, newOrder);
 
         emit orderUpdated(msg.sender, newOrder);
     }
 
     function deleteOrder(Order memory order) external {
         require(
-            orderBook[order.orderID] == hash(msg.sender, order),
+            orderBook[order.orderID] == _hash(msg.sender, order),
             "ERROR : order does not exist"
         );
         orderBook[order.orderID] = bytes32(0);
@@ -53,7 +53,7 @@ contract OrderBook {
         emit orderDeleted(msg.sender, order);
     }
 
-    function hash(
+    function _hash(
         address owner,
         Order memory order
     ) public pure returns (bytes32) {
