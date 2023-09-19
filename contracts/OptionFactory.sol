@@ -8,7 +8,6 @@ import {IERC20} from "./interface/IERC20.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
 
 contract OptionFactory {
-
     struct Option {
         address baseToken;
         address quoteToken;
@@ -20,10 +19,9 @@ contract OptionFactory {
     IPermit2 public immutable permit2;
     address public broker;
 
-
     mapping(bytes32 => address) public getOptions;
 
-    constructor(address _broker, IPermit2 _permit2 ) {
+    constructor(address _broker, IPermit2 _permit2) {
         broker = _broker;
         permit2 = _permit2;
     }
@@ -39,7 +37,7 @@ contract OptionFactory {
 
     function createOption(
         Option memory option
-    ) external returns(address createdOption) {
+    ) external returns (address createdOption) {
         require(
             option.baseToken != option.quoteToken,
             "ERROR : identical addresses"
@@ -69,7 +67,7 @@ contract OptionFactory {
                     option.strikePriceRatio,
                     option.expirationDate,
                     IERC20(option.baseToken).decimals(),
-                    permit2 ,
+                    permit2,
                     broker
                 )
             );
@@ -81,7 +79,7 @@ contract OptionFactory {
                     option.strikePriceRatio,
                     option.expirationDate,
                     IERC20(option.baseToken).decimals(),
-                    permit2 ,
+                    permit2,
                     broker
                 )
             );
