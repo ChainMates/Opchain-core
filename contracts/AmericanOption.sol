@@ -8,7 +8,7 @@ import {IPermit2} from "./interface/IPermit2.sol";
 import {IERC20} from "./interface/IERC20.sol";
 import {SafeMath} from "./library/SafeMath.sol";
 
-contract AmericanOption is ERC20 , ReentrancyGuard {
+contract AmericanOption is ERC20, ReentrancyGuard {
     struct IssueInfo {
         uint share;
         uint32 stageJoined;
@@ -20,16 +20,7 @@ contract AmericanOption is ERC20 , ReentrancyGuard {
         IssueInfo[] issuances;
     }
 
-    struct Order {
-        address owner;
-        uint256 amount;
-        bytes signature;
-        IPermit2.PermitSingle permitSingle;
-    }
-
     using SafeMath for uint256;
-
-    string PERMIT2_ORDER_TYPE = "";
 
     uint[] stageShare;
 
@@ -41,11 +32,11 @@ contract AmericanOption is ERC20 , ReentrancyGuard {
     uint totalShare;
 
     IPermit2 public immutable permit2;
-    address public broker; 
+    address public broker;
     uint256 strikePriceDenominator;
 
     mapping(address => OptionMaker) public optionMakers;
-    
+
     modifier isExpierd() {
         require(
             block.timestamp > expirationDate,
@@ -62,12 +53,12 @@ contract AmericanOption is ERC20 , ReentrancyGuard {
         _;
     }
 
-        modifier onlyBroker() {
+    modifier onlyBroker() {
         require(msg.sender == broker, "UNAUTHORIZED");
 
         _;
     }
-    
+
     constructor(
         address _baseToken,
         address _quoteToken,
@@ -82,38 +73,60 @@ contract AmericanOption is ERC20 , ReentrancyGuard {
         strikePriceRatio = _strikePriceRatio;
         expirationDate = _expirationDate;
         permit2 = _permit2;
-        broker =_broker;
+        broker = _broker;
         strikePriceDenominator = 10 ** _baseTokenDecimals;
     }
 
+    function issue(
+        address maker,
+        address taker,
+        uint amount
+    ) external nonReentrant onlyBroker {
+        require(amount != 0, "ERROR: optionAmount cannot be zero");
 
-    function issue(Order memory order, address taker) external nonReentrant onlyBroker {
-        require(order.amount != 0, "ERROR: optionAmount cannot be zero");
+        permit2.transferFrom(maker, address(this), uint160(amount), baseToken);
 
-        permitAndTransfer(order);
+        _mint(taker, amount);
+        totalShare += amount;
 
-        _mint(taker, order.amount);
-        totalShare += order.amount;
+        optionMakers[maker].totalShare += amount;
 
-        optionMakers[order.owner].totalShare += order.amount;
-
-        optionMakers[order.owner].issuances.push(
-            IssueInfo(order.amount, uint32(stageShare.length))
+        optionMakers[maker].issuances.push(
+            IssueInfo(amount, uint32(stageShare.length))
         );
     }
 
-    function exercise(Order memory order) external nonReentrant {
-        _burn(order.owner, order.amount);
-        IERC20(baseToken).transfer(order.owner, order.amount);
+    function exercise(
+        address owner,
+        uint amount,
+        IPermit2.PermitSingle memory permitSingle,
+        bytes memory signature
+    ) external nonReentrant isNotExpierd {
+        _burn(owner, amount);
+        IERC20(baseToken).transfer(owner, amount);
 
-        order.amount = order.amount.mul(strikePriceRatio).div(
-            strikePriceDenominator
+        amount = amount.mul(strikePriceRatio).div(strikePriceDenominator);
+        uint256 userAllowance = IERC20(quoteToken).allowance(
+            owner,
+            address(this)
         );
-        permitAndTransfer(order);
-        stageShare.push(order.amount.mul(10 ** decimals).div(totalSupply));
+        if (amount >= userAllowance)
+            permit2.permit(owner, permitSingle, signature);
+
+        permit2.transferFrom(owner, address(this), uint160(amount), quoteToken);
+        stageShare.push(amount.mul(10 ** decimals).div(totalSupply));
     }
 
-    function collectQuoteToken(address recipient) external nonReentrant {
+    function collect(address recipient) external nonReentrant isExpierd {
+        uint baseTokenAmount = totalSupply
+            .mul(optionMakers[msg.sender].totalShare)
+            .div(totalShare);
+        IERC20(baseToken).transfer(recipient, baseTokenAmount);
+
+        _collectQuoteToken(recipient);
+    }
+
+    function _collectQuoteToken(address _recipient) internal {
         uint collectAmount;
 
         for (uint i = 0; i < optionMakers[msg.sender].issuances.length; i++) {
@@ -137,60 +150,19 @@ contract AmericanOption is ERC20 , ReentrancyGuard {
             }
 
             collectAmount -= optionMakers[msg.sender].collected;
-            IERC20(quoteToken).transfer(recipient, collectAmount);
+            IERC20(quoteToken).transfer(_recipient, collectAmount);
             optionMakers[msg.sender].collected += collectAmount;
         }
     }
 
-    function collect(address recipient) external nonReentrant isExpierd {
-        uint baseTokenAmount = totalSupply
-            .mul(optionMakers[msg.sender].totalShare)
-            .div(totalShare);
-        IERC20(baseToken).transfer(recipient, baseTokenAmount);
-    }
-
-    function brokerSwap(address maker , address taker , uint amount) external onlyBroker {
+    function brokerSwap(
+        address maker,
+        address taker,
+        uint amount
+    ) external onlyBroker {
         balanceOf[maker] -= amount;
         balanceOf[taker] += amount;
 
         emit Transfer(maker, taker, amount);
     }
-
-    // function permitAndTransfer(Order memory order) internal {
-    //     // Transfer tokens from the caller to ourselves.
-    //     permit2.permitWitnessTransferFrom(
-    //         // The permit message.
-    //         IPermit2.PermitTransferFrom({
-    //             permitted: IPermit2.TokenPermissions({
-    //                 token: order.permit.token,
-    //                 amount: order.permit.amount
-    //             }),
-    //             nonce: order.permit.nonce,
-    //             deadline: order.permit.deadline
-    //         }),
-    //         // The transfer recipient and amount.
-    //         IPermit2.SignatureTransferDetails({
-    //             to: address(this),
-    //             requestedAmount: order.amount
-    //         }),
-    //         // The owner of the tokens, which must also be
-    //         // the signer of the message, otherwise this call
-    //         // will fail.
-    //         order.owner,
-    //         order.permit.hash,
-    //         PERMIT2_ORDER_TYPE,
-    //         // The packed signature that was the result of signing
-    //         // the EIP712 hash of `permit`.
-    //         order.permit.signature
-    //     );
-    // }
-
-
-    function permitAndTransfer(Order memory order) internal {
-   
-    require(order.permitSingle.spender != address(this) , "ERROR: invalid spender");
-     
-    permit2.transferFrom(msg.sender, address(this), uint160(order.amount) , order.permitSingle.details.token);
-    //...Do cooler stuff ...
-   }
 }
