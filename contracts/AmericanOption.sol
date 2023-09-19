@@ -3,11 +3,12 @@
 pragma solidity ^0.8.0;
 
 import {ERC20} from "solmate/src/tokens/ERC20.sol";
+import {ReentrancyGuard} from "solmate/src/utils/ReentrancyGuard.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
 import {IERC20} from "./interface/IERC20.sol";
 import {SafeMath} from "./library/SafeMath.sol";
 
-contract AmericanOption is ERC20 {
+contract AmericanOption is ERC20 , ReentrancyGuard {
     struct IssueInfo {
         uint share;
         uint32 stageJoined;
@@ -39,7 +40,6 @@ contract AmericanOption is ERC20 {
 
     uint totalShare;
 
-    bool private _reentrancyGuard;
     IPermit2 public immutable permit2;
     address public broker; 
     uint256 strikePriceDenominator;
@@ -60,14 +60,6 @@ contract AmericanOption is ERC20 {
             "ERROR : Option has expired"
         );
         _;
-    }
-
-    // Prevents reentrancy attacks via tokens with callback mechanisms.
-    modifier nonReentrant() {
-        require(!_reentrancyGuard, "no reentrancy");
-        _reentrancyGuard = true;
-        _;
-        _reentrancyGuard = false;
     }
 
         modifier onlyBroker() {
@@ -157,6 +149,13 @@ contract AmericanOption is ERC20 {
         IERC20(baseToken).transfer(recipient, baseTokenAmount);
     }
 
+    function brokerSwap(address maker , address taker , uint amount) external onlyBroker {
+        balanceOf[maker] -= amount;
+        balanceOf[taker] += amount;
+
+        emit Transfer(maker, taker, amount);
+    }
+
     // function permitAndTransfer(Order memory order) internal {
     //     // Transfer tokens from the caller to ourselves.
     //     permit2.permitWitnessTransferFrom(
@@ -190,7 +189,7 @@ contract AmericanOption is ERC20 {
     function permitAndTransfer(Order memory order) internal {
    
     require(order.permitSingle.spender != address(this) , "ERROR: invalid spender");
-    permit2.permit(msg.sender, order.permitSingle, order.signature);
+     
     permit2.transferFrom(msg.sender, address(this), uint160(order.amount) , order.permitSingle.details.token);
     //...Do cooler stuff ...
    }

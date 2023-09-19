@@ -3,11 +3,12 @@
 pragma solidity ^0.8.0;
 
 import {ERC20} from "solmate/src/tokens/ERC20.sol";
+import {ReentrancyGuard} from "solmate/src/utils/ReentrancyGuard.sol";
 import {IPermit2} from "./interface/IPermit2.sol";
 import {IERC20} from "./interface/IERC20.sol";
 import {SafeMath} from "./library/SafeMath.sol";
 
-contract EuropeanOption is ERC20 {
+contract EuropeanOption is ERC20 ,ReentrancyGuard {
 
     struct Order {
         address owner;
@@ -27,20 +28,11 @@ contract EuropeanOption is ERC20 {
 
     uint totalShare;
 
-    bool private _reentrancyGuard;
     IPermit2 public immutable permit2;
     address public broker;
     uint256 strikePriceDenominator;
 
     mapping(address => uint) public makersShare;
-
-    // Prevents reentrancy attacks via tokens with callback mechanisms.
-    modifier nonReentrant() {
-        require(!_reentrancyGuard, "no reentrancy");
-        _reentrancyGuard = true;
-        _;
-        _reentrancyGuard = false;
-    }
 
     modifier isExpierd() {
         require(
@@ -126,6 +118,13 @@ contract EuropeanOption is ERC20 {
             )
         ).mul(makersShare[msg.sender]).div(totalShare);
         IERC20(baseToken).transfer(recipient, quoteTokenAmount);
+    }
+
+    function brokerSwap(address maker , address taker , uint amount) external onlyBroker {
+        balanceOf[maker] -= amount;
+        balanceOf[taker] += amount;
+
+        emit Transfer(maker, taker, amount);
     }
 
     // function permitAndTransfer(Order memory order) internal {
