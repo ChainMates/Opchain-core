@@ -18,7 +18,7 @@ contract OrderBook {
 
     event orderAdded(address owner, Order order);
     event orderUpdated(address owner, Order newOrder);
-    event orderDeleted(address owner, Order deletedOrder);
+    event orderDeleted(uint orderID);
 
     function addOrder(Order memory order) external {
         require(
@@ -50,7 +50,7 @@ contract OrderBook {
         );
         orderBook[order.orderID] = bytes32(0);
 
-        emit orderDeleted(msg.sender, order);
+        emit orderDeleted(order.orderID);
     }
 
     function _hash(

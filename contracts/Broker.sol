@@ -11,7 +11,7 @@ import {SafeMath} from "./library/SafeMath.sol";
 import {OrderBook} from "./OrderBook.sol";
 import {ReentrancyGuard} from "solmate/src/utils/ReentrancyGuard.sol";
 
-contract Broker is OrderBook , IBroker , ReentrancyGuard {
+contract Broker is OrderBook, IBroker, ReentrancyGuard {
     /// @notice permit2 address used for token transfers and signature verification
     IPermit2 public immutable permit2;
     using SafeMath for uint256;
@@ -21,70 +21,147 @@ contract Broker is OrderBook , IBroker , ReentrancyGuard {
         permit2 = _permit2;
     }
 
+    function executeOrder(
+        MatchedOrder memory matchedOrder
+    ) external nonReentrant {
+        require(
+            _checkOrderFeasibility(matchedOrder),
+            "ERROR : low balance or allowance error"
+        );
 
+        require(_checkOrdersValidity(matchedOrder), "ERROR : validation error");
 
-    function executeOrder(MatchedOrder memory matchedOrder) external nonReentrant {
-     
-        require(_checkOrderFeasibility(matchedOrder) , "ERROR : low balance or allowance");
+        require(_checkOrdersFairness(matchedOrder), "ERROR : fairness error");
 
-        require(_checkOrdersValidity(matchedOrder) , "ERROR : orders not valid");
+        uint matchedAmount = min(
+            matchedOrder.makerOptionAmount,
+            matchedOrder.takerOptionAmount
+        );
+        uint permiumAmount = matchedAmount
+            .mul(matchedOrder.makerPermiumRatio)
+            .div(
+                IOption(matchedOrder.optionContractAddress)
+                    .strikePriceDenominator()
+            );
 
-
-
-    } 
-
-
-    function _checkOrderFeasibility(MatchedOrder memory matchedOrder) internal returns (bool) {
-
-        bool isMakerOrderFeasible;
-
-        if (IOption(matchedOrder.optionContractAddress).balanceOf(matchedOrder.makerAddress) >= matchedOrder.makerOptionAmount) 
-            isMakerOrderFeasible = true;
+        if (
+            IERC20(matchedOrder.optionContractAddress).balanceOf(
+                matchedOrder.makerAddress
+            ) >= matchedAmount
+        )
+            IOption(matchedOrder.optionContractAddress).brokerSwap(
+                matchedOrder.makerAddress,
+                matchedOrder.takerAddress,
+                matchedAmount
+            );
         else
-         isMakerOrderFeasible = _ValidateAndPermitOrder(matchedOrder.makerAddress, IOption(matchedOrder.optionContractAddress).baseToken() ,matchedOrder.makerOptionAmount , matchedOrder.toPermitSingle(true) , matchedOrder.makerSignature);
-              
-        uint takerAmount = matchedOrder.takerOptionAmount.mul(matchedOrder.takerPermiumRatio).div(IOption(matchedOrder.optionContractAddress).strikePriceDenominator());
-        bool isTakerOrderFeasible = _ValidateAndPermitOrder(matchedOrder.takerAddress, IOption(matchedOrder.optionContractAddress).quoteToken() , takerAmount , matchedOrder.toPermitSingle(false) , matchedOrder.takerSignature);
-        
-        return (isMakerOrderFeasible && isTakerOrderFeasible);
+            IOption(matchedOrder.optionContractAddress).issue(
+                matchedOrder.makerAddress,
+                matchedOrder.takerAddress,
+                matchedAmount
+            );
 
+        IERC20(IOption(matchedOrder.optionContractAddress).baseToken())
+            .transferFrom(
+                matchedOrder.takerAddress,
+                matchedOrder.makerAddress,
+                permiumAmount
+            );
+
+        _updateOrderBook(matchedOrder, matchedAmount);
     }
 
-    function _checkOrdersValidity(MatchedOrder memory matchedOrder) internal view returns(bool){
+    function _checkOrderFeasibility(
+        MatchedOrder memory _matchedOrder
+    ) internal returns (bool) {
+        bool isMakerOrderFeasible;
 
+        if (
+            IERC20(_matchedOrder.optionContractAddress).balanceOf(
+                _matchedOrder.makerAddress
+            ) >= _matchedOrder.makerOptionAmount
+        ) isMakerOrderFeasible = true;
+        else
+            isMakerOrderFeasible = _ValidateAndPermitOrder(
+                _matchedOrder.makerAddress,
+                _matchedOrder.optionContractAddress,
+                IOption(_matchedOrder.optionContractAddress).baseToken(),
+                _matchedOrder.makerOptionAmount,
+                _matchedOrder.toPermitSingle(true),
+                _matchedOrder.makerSignature
+            );
+
+        uint takerAmount = _matchedOrder
+            .takerOptionAmount
+            .mul(_matchedOrder.takerPermiumRatio)
+            .div(
+                IOption(_matchedOrder.optionContractAddress)
+                    .strikePriceDenominator()
+            );
+        bool isTakerOrderFeasible = _ValidateAndPermitOrder(
+            _matchedOrder.takerAddress,
+            address(this),
+            IOption(_matchedOrder.optionContractAddress).quoteToken(),
+            takerAmount,
+            _matchedOrder.toPermitSingle(false),
+            _matchedOrder.takerSignature
+        );
+
+        return (isMakerOrderFeasible && isTakerOrderFeasible);
+    }
+
+    function _checkOrdersValidity(
+        MatchedOrder memory _matchedOrder
+    ) internal view returns (bool) {
         bytes32 makerOrderHash = _hash(
-            matchedOrder.makerAddress, Order(
-            matchedOrder.makerOrderID,
-            true,
-            matchedOrder.makerOptionAmount,
-            matchedOrder.makerPermiumRatio,
-            matchedOrder.makerDeadline,
-            matchedOrder.makerNonce,
-            matchedOrder.makerSignature,
-            matchedOrder.optionContractAddress
-        ));
+            _matchedOrder.makerAddress,
+            Order(
+                _matchedOrder.makerOrderID,
+                true,
+                _matchedOrder.makerOptionAmount,
+                _matchedOrder.makerPermiumRatio,
+                _matchedOrder.makerDeadline,
+                _matchedOrder.makerNonce,
+                _matchedOrder.makerSignature,
+                _matchedOrder.optionContractAddress
+            )
+        );
 
         bytes32 takerOrderHash = _hash(
-            matchedOrder.takerAddress, Order(
-            matchedOrder.takerOrderID,
-            false,
-            matchedOrder.takerOptionAmount,
-            matchedOrder.takerPermiumRatio,
-            matchedOrder.takerDeadline,
-            matchedOrder.takerNonce,
-            matchedOrder.takerSignature,
-            matchedOrder.optionContractAddress
-        ));
+            _matchedOrder.takerAddress,
+            Order(
+                _matchedOrder.takerOrderID,
+                false,
+                _matchedOrder.takerOptionAmount,
+                _matchedOrder.takerPermiumRatio,
+                _matchedOrder.takerDeadline,
+                _matchedOrder.takerNonce,
+                _matchedOrder.takerSignature,
+                _matchedOrder.optionContractAddress
+            )
+        );
 
-        bool isOrdersExpired = (matchedOrder.makerDeadline < block.timestamp) || (matchedOrder.takerDeadline < block.timestamp);
-        bool isOrdersValid = (orderBook[matchedOrder.makerOrderID] == makerOrderHash && orderBook[matchedOrder.takerOrderID] == takerOrderHash );
+        bool isOrdersExpired = (_matchedOrder.makerDeadline <
+            block.timestamp) || (_matchedOrder.takerDeadline < block.timestamp);
+        bool isOrdersValid = (orderBook[_matchedOrder.makerOrderID] ==
+            makerOrderHash &&
+            orderBook[_matchedOrder.takerOrderID] == takerOrderHash);
 
         return (!isOrdersExpired && isOrdersValid);
     }
 
+    function _checkOrdersFairness(
+        MatchedOrder memory _matchedOrder
+    ) internal pure returns (bool) {
+        return ((_matchedOrder.makerPermiumRatio <=
+            _matchedOrder.takerPermiumRatio) ||
+            (_matchedOrder.makerOptionAmount ==
+                _matchedOrder.takerOptionAmount));
+    }
 
     function _ValidateAndPermitOrder(
         address _owner,
+        address _spender,
         address _token,
         uint256 _amount,
         IPermit2.PermitSingle memory _permitSingle,
@@ -92,23 +169,87 @@ contract Broker is OrderBook , IBroker , ReentrancyGuard {
     ) internal returns (bool) {
         bool isTransactionValid;
         uint256 userBalance = IERC20(_token).balanceOf(_owner);
-        uint256 userAllowance = IERC20(_token).allowance(
-            _owner,
-            address(this)
-        );
-
+        uint256 userAllowance = IERC20(_token).allowance(_owner, _spender);
 
         if (userBalance >= _amount) {
-            if(userAllowance >= _amount)
-            isTransactionValid = true;
+            if (userAllowance >= _amount) isTransactionValid = true;
             else {
-            permit2.permit(_owner, _permitSingle, _signature);   
-            userAllowance = IERC20(_token).allowance(_owner, address(this));
-            if(userAllowance >= _amount)
-            isTransactionValid = true;    
+                permit2.permit(_owner, _permitSingle, _signature);
+                userAllowance = IERC20(_token).allowance(_owner, address(this));
+                if (userAllowance >= _amount) isTransactionValid = true;
             }
         }
         return isTransactionValid;
     }
 
+    function _updateOrderBook(
+        MatchedOrder memory matchedOrder,
+        uint matchedAmount
+    ) internal {
+        if (matchedOrder.makerOptionAmount == matchedAmount) {
+            orderBook[matchedOrder.makerOrderID] = bytes32(0);
+            emit orderDeleted(matchedOrder.makerOrderID);
+
+            orderBook[matchedOrder.takerOrderID] = keccak256(
+                abi.encode(
+                    matchedOrder.takerAddress,
+                    matchedOrder.takerOrderID,
+                    false,
+                    (matchedOrder.takerOptionAmount - matchedAmount),
+                    matchedOrder.takerPermiumRatio,
+                    matchedOrder.takerDeadline,
+                    matchedOrder.takerNonce,
+                    matchedOrder.takerSignature,
+                    matchedOrder.optionContractAddress
+                )
+            );
+            emit orderUpdated(
+                matchedOrder.takerAddress,
+                Order(
+                    matchedOrder.takerOrderID,
+                    false,
+                    (matchedOrder.takerOptionAmount - matchedAmount),
+                    matchedOrder.takerPermiumRatio,
+                    matchedOrder.takerDeadline,
+                    matchedOrder.takerNonce,
+                    matchedOrder.takerSignature,
+                    matchedOrder.optionContractAddress
+                )
+            );
+        } else {
+            orderBook[matchedOrder.makerOrderID] = keccak256(
+                abi.encode(
+                    matchedOrder.makerAddress,
+                    matchedOrder.makerOrderID,
+                    true,
+                    (matchedOrder.makerOptionAmount - matchedAmount),
+                    matchedOrder.makerPermiumRatio,
+                    matchedOrder.makerDeadline,
+                    matchedOrder.makerNonce,
+                    matchedOrder.makerSignature,
+                    matchedOrder.optionContractAddress
+                )
+            );
+            emit orderUpdated(
+                matchedOrder.makerAddress,
+                Order(
+                    matchedOrder.makerOrderID,
+                    true,
+                    (matchedOrder.makerOptionAmount - matchedAmount),
+                    matchedOrder.makerPermiumRatio,
+                    matchedOrder.makerDeadline,
+                    matchedOrder.makerNonce,
+                    matchedOrder.makerSignature,
+                    matchedOrder.optionContractAddress
+                )
+            );
+
+            orderBook[matchedOrder.takerOrderID] = bytes32(0);
+            emit orderDeleted(matchedOrder.takerOrderID);
+        }
+    }
+
+    function min(uint256 a, uint256 b) public pure returns (uint256) {
+        return a <= b ? a : b;
+    }
 }
