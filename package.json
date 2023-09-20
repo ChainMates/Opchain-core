@@ -17,7 +17,8 @@
   "homepage": "https://github.com/ChainMates/Opchain-core#readme",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^3.0.0",
-    "hardhat": "^2.17.3"
+    "hardhat": "^2.17.3",
+    "hardhat-contract-sizer": "^2.10.0"
   },
   "dependencies": {
     "solmate": "^6.2.0"

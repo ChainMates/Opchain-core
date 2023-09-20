@@ -1,4 +1,5 @@
 const { privateKey, mumbaiApiKey } = require("./config.json")
+require("hardhat-contract-sizer");
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
@@ -10,7 +11,15 @@ export default config;
 
 
 module.exports = {
-  solidity: "0.8.19",
+  solidity: {
+    version: "0.8.19",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 1000,
+      },
+    },
+  },
   networks: {
 
     polygon_mumbai: {
@@ -18,11 +27,6 @@ module.exports = {
       accounts: [privateKey],
     }
   },
-  settings: {
-    optimizer: {
-      enabled: true,
-      runs: 1,
-    },
-  },
+
   defaultNetwork: "polygon_mumbai",
 };
