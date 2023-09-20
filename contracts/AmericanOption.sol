@@ -67,7 +67,7 @@ contract AmericanOption is ERC20, ReentrancyGuard {
         uint8 _baseTokenDecimals,
         IPermit2 _permit2,
         address _broker
-    ) ERC20("AmericanOption", "EOPT", _baseTokenDecimals) {
+    ) ERC20("AmericanOption", "AOPT", _baseTokenDecimals) {
         baseToken = _baseToken;
         quoteToken = _quoteToken;
         strikePriceRatio = _strikePriceRatio;

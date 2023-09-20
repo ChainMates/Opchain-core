@@ -1,27 +1,24 @@
 import { ethers } from "hardhat";
+const fs = require("fs");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
+  const contractName: string = process.env.CONTRACT_NAME || ""
+  const [deployer] = await ethers.getSigners();
 
-  const lockedAmount = ethers.parseEther("0.001");
+  console.log("Deploying contracts with the account:", deployer.address)
 
-  const lock = await ethers.deployContract("Lock", [unlockTime], {
-    value: lockedAmount,
-  });
+  const contract = await ethers.deployContract(contractName)
 
-  await lock.waitForDeployment();
+  console.log("contract address:", await contract.address)
 
-  console.log(
-    `Lock with ${ethers.formatEther(
-      lockedAmount
-    )}ETH and unlock timestamp ${unlockTime} deployed to ${lock.target}`
-  );
+  let contracts = JSON.parse(fs.readFileSync("./contracts.json").toString())
+  contracts.push({ address: contract.address, name: contract.name })
+  fs.writeFileSync("./contracts.json", JSON.stringify(contracts))
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
