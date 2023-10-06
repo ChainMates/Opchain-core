@@ -52,4 +52,21 @@ interface IPermit2 {
         uint160 amount,
         address token
     ) external;
+
+    /// @notice The saved permissions
+    /// @dev This info is saved per owner, per token, per spender and all signed over in the permit message
+    /// @dev Setting amount to type(uint160).max sets an unlimited approval
+    struct PackedAllowance {
+        // amount allowed
+        uint160 amount;
+        // permission expiry
+        uint48 expiration;
+        // an incrementing value indexed per owner,token,and spender for each signature
+        uint48 nonce;
+    }
+
+    function allowance(address user, address token, address spender)
+    external
+    view
+    returns (uint160 amount, uint48 expiration, uint48 nonce);
 }

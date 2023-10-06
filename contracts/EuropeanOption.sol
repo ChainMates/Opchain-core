@@ -8,6 +8,10 @@ import {IPermit2} from "./interface/IPermit2.sol";
 import {IERC20} from "./interface/IERC20.sol";
 import {SafeMath} from "./library/SafeMath.sol";
 
+/**
+ * @title AmericanOption
+ * @dev A contract for European options trading
+ */
 contract EuropeanOption is ERC20, ReentrancyGuard {
     using SafeMath for uint256;
 
@@ -15,6 +19,9 @@ contract EuropeanOption is ERC20, ReentrancyGuard {
     address public immutable quoteToken;
     uint public immutable strikePriceRatio;
     uint public immutable expirationDate;
+
+    event issued(address maker , address taker , uint amount , address optionContractAddress);
+
 
     uint totalShare;
 
@@ -54,6 +61,16 @@ contract EuropeanOption is ERC20, ReentrancyGuard {
         _;
     }
 
+    /**
+     * @dev Constructor function
+     * @param _baseToken The address of the base token
+     * @param _quoteToken The address of the quote token
+     * @param _strikePriceRatio The ratio of the strike price to the base token
+     * @param _expirationDate The expiration date of the option
+     * @param _baseTokenDecimals The number of decimals of the base token
+     * @param _permit2 The address of the permit2 contract
+     * @param _broker The address of the broker
+     */
     constructor(
         address _baseToken,
         address _quoteToken,
@@ -69,9 +86,15 @@ contract EuropeanOption is ERC20, ReentrancyGuard {
         expirationDate = _expirationDate;
         permit2 = _permit2;
         broker = _broker;
-        strikePriceDenominator = 10 ** _baseTokenDecimals;
+        strikePriceDenominator = 10 ** _baseTokenDecimals; 
     }
 
+    /**
+     * @dev Issues an option
+     * @param maker The address of the option maker
+     * @param taker The address of the option taker
+     * @param amount The amount of the option to be issued
+     */
     function issue(
         address maker,
         address taker,
@@ -83,28 +106,39 @@ contract EuropeanOption is ERC20, ReentrancyGuard {
         _mint(taker, amount);
         totalShare += amount;
         makersShare[maker] += amount;
+        emit issued(maker ,taker , amount , address(this));
+
     }
 
+    /**
+     * @dev Exercises an option
+     * @param amount The amount of the option to be exercised
+     * @param permitSingle The permit information for the quote token
+     * @param signature The signature for the permit
+     */
     function exercise(
-        address owner,
         uint amount,
         IPermit2.PermitSingle memory permitSingle,
         bytes memory signature
     ) external nonReentrant isExercisable isNotExpierd {
-        IERC20(baseToken).transfer(owner, amount);
-        _burn(owner, amount);
 
-        amount = amount.mul(strikePriceRatio).div(strikePriceDenominator);
-        uint256 userAllowance = IERC20(quoteToken).allowance(
-            owner,
-            address(this)
-        );
-        if (amount >= userAllowance)
-            permit2.permit(owner, permitSingle, signature);
+        require(balanceOf[msg.sender] >= amount , "ERROR : insufficient option amount");
 
-        permit2.transferFrom(owner, address(this), uint160(amount), quoteToken);
+        uint permiumAmount = amount.mul(strikePriceRatio).div(strikePriceDenominator);
+        (uint160 userAllowance, uint48 expiration,) = permit2.allowance(msg.sender , quoteToken , address(this));
+        if (permiumAmount >= userAllowance || expiration <= block.timestamp)
+            permit2.permit(msg.sender, permitSingle, signature);
+
+        permit2.transferFrom(msg.sender, address(this), uint160(permiumAmount), quoteToken);
+       
+        _burn(msg.sender, amount);
+        IERC20(baseToken).transfer(msg.sender, amount);
     }
 
+    /**
+     * @dev Collects the payout for an option
+     * @param recipient The address of the recipient of the payout
+     */
     function collect(address recipient) external nonReentrant isExpierd {
         uint baseTokenAmount = totalSupply.mul(makersShare[msg.sender]).div(
             totalShare
@@ -119,6 +153,12 @@ contract EuropeanOption is ERC20, ReentrancyGuard {
         IERC20(baseToken).transfer(recipient, quoteTokenAmount);
     }
 
+    /**
+     * @dev Swaps an option between two parties
+     * @param maker The address of the option maker
+     * @param taker The address of the option taker
+     * @param amount The amount of the option to be swapped
+     */
     function brokerSwap(
         address maker,
         address taker,

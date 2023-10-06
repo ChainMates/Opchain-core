@@ -22,7 +22,7 @@ library SafeMath {
             return 0;
         }
         c = a * b;
-        assert(c / a == b);
+        assert(c / a == b );
         return c;
     }
 
