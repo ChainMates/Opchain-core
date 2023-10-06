@@ -1,4 +1,4 @@
-const { privateKey, mumbaiApiKey } = require("./config.json")
+const { privateKey, mumbaiApiKey, sepoliaApiKey } = require("./config.json")
 require("hardhat-contract-sizer");
 require("hardhat-tracer");
 import { HardhatUserConfig } from "hardhat/config";
@@ -27,30 +27,17 @@ module.exports = {
     polygon_mumbai: {
       url: mumbaiApiKey,
       accounts: [privateKey],
-      chainId : 80001
+      chainId: 80001
+    },
+    sepolia: {
+      url: sepoliaApiKey,
+      accounts: [privateKey],
+      chainId: 11155111
     },
     hardhat: {
       allowUnlimitedContractSize: false,
     },
-    // arbitrumRinkeby: {
-    //   url: `https://arbitrum-rinkeby.infura.io/v3/${process.env.INFURA_API_KEY}`,
-    // },
-    // arbitrum: {
-    //   url: `https://arbitrum-mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
-    // },
-    // optimismKovan: {
-    //   url: `https://optimism-kovan.infura.io/v3/${process.env.INFURA_API_KEY}`,
-    // },
-    // optimism: {
-    //   url: `https://optimism-mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
-    // },
-    // mumbai: {
-    //   url: `https://polygon-mumbai.infura.io/v3/${process.env.INFURA_API_KEY}`,
-    // },
-    // polygon: {
-    //   url: `https://polygon-mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
-    // },
   },
 
-  // defaultNetwork: "polygon_mumbai",
+  defaultNetwork: "sepolia",
 };

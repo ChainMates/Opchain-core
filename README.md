@@ -1,13 +1,8 @@
-# Sample Hardhat Project
+# Opchain
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+A decenteralized ptocol for option trading
 
-Try running some of the following tasks:
+u can see whitepaper for more informations.
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts
-```
+GUI Preview:
+![Opchain GUI Preview](/interfacePreview.png "Opchain GUI Preview")

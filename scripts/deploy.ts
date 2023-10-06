@@ -2,13 +2,13 @@ import { ethers } from "hardhat";
 const fs = require("fs");
 
 async function main() {
-  const contractName: string = "Broker"
+  const contractName: string = "OptionFactory"
   let Contracts = JSON.parse(fs.readFileSync("./contracts.json").toString())
   const [deployer1 , deployer2] = await ethers.getSigners();
 
   console.log("Deploying contracts with the account:", deployer1.address)
 
-  const contract = await ethers.deployContract(contractName,[Contracts.Permit2])
+  const contract = await ethers.deployContract(contractName,[Contracts.Broker,Contracts.Permit2])
 
   console.log("contract address:", await contract.getAddress())
 
@@ -17,7 +17,7 @@ async function main() {
   // console.log(await contract.balanceOf(deployer2))
 
   let contracts = JSON.parse(fs.readFileSync("./contracts.json").toString())
-  contracts["TestUSDT"] = await contract.getAddress()
+  contracts[contractName] = await contract.getAddress()
   fs.writeFileSync("./contracts.json", JSON.stringify(contracts))
 }
 
