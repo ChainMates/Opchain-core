@@ -21,6 +21,10 @@
     "hardhat-contract-sizer": "^2.10.0"
   },
   "dependencies": {
+    "@ethersproject/providers": "^5.7.2",
+    "@uniswap/permit2-sdk": "^1.2.0",
+    "ethers": "^6.7.1",
+    "hardhat-tracer": "^2.6.0",
     "solmate": "^6.2.0"
   }
 }
