@@ -1,8 +1,8 @@
 # Opchain-core
 
-A decenteralized ptocol for option trading
+A decentralized protocol for option trading
 
-u can see whitepaper for more informations.
+you can see whitepaper for more informations.
 
 [GUI Preview:](https://github.com/ChainMates/Opchain-interface)
 ![Opchain GUI Preview](/interfacePreview.png "Opchain GUI Preview")
